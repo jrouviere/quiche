@@ -877,17 +877,17 @@ impl RecoveryOps for LegacyRecovery {
         )
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn sent_packets_len(&self, epoch: packet::Epoch) -> usize {
         self.epochs[epoch].sent_packets.len()
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn in_flight_count(&self, epoch: packet::Epoch) -> usize {
         self.epochs[epoch].in_flight_count
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn bytes_in_flight(&self) -> usize {
         self.bytes_in_flight.get()
     }
@@ -896,22 +896,22 @@ impl RecoveryOps for LegacyRecovery {
         self.bytes_in_flight.get_duration()
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn pacing_rate(&self) -> u64 {
         self.congestion.pacer.rate()
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn pto_count(&self) -> u32 {
         self.pto_count
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn pkt_thresh(&self) -> u64 {
         self.pkt_thresh
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn lost_spurious_count(&self) -> usize {
         self.lost_spurious_count
     }

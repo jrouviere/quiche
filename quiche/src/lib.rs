@@ -19267,6 +19267,7 @@ pub use crate::stream::StreamIter;
 pub use crate::range_buf::BufFactory;
 pub use crate::range_buf::BufSplit;
 
+pub mod cc_simu;
 mod cid;
 mod crypto;
 mod dgram;

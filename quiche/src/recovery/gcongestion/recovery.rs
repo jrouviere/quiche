@@ -913,17 +913,17 @@ impl RecoveryOps for GRecovery {
         self.pacer.on_app_limited(self.bytes_in_flight.get())
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn sent_packets_len(&self, epoch: packet::Epoch) -> usize {
         self.epochs[epoch].sent_packets.len()
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn in_flight_count(&self, epoch: packet::Epoch) -> usize {
         self.epochs[epoch].pkts_in_flight
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn bytes_in_flight(&self) -> usize {
         self.bytes_in_flight.get()
     }
@@ -932,24 +932,24 @@ impl RecoveryOps for GRecovery {
         self.bytes_in_flight.get_duration()
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn pacing_rate(&self) -> u64 {
         self.pacer
             .pacing_rate(self.bytes_in_flight.get(), &self.rtt_stats)
             .to_bytes_per_period(Duration::from_secs(1))
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn pto_count(&self) -> u32 {
         self.pto_count
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn pkt_thresh(&self) -> u64 {
         self.pkt_thresh
     }
 
-    #[cfg(test)]
+    // #[cfg(test)]
     fn lost_spurious_count(&self) -> usize {
         self.lost_spurious_count
     }
