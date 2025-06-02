@@ -252,7 +252,12 @@ impl CCSimuGui {
         let delivery_rate: PlotPoints = stats
             .ticks
             .iter()
-            .map(|v| [v.elapsed, v.delivery_rate as f64])
+            .map(|v| {
+                [
+                    v.elapsed,
+                    8.0 * v.delivery_rate as f64 / 1024.0 / 1024.0 as f64,
+                ]
+            })
             .collect();
         let line_delivery_rate = Line::new("delivery_rate", delivery_rate);
 
@@ -270,7 +275,7 @@ impl CCSimuGui {
                 .show(ui, |ui| {
                     ui.set_max_size(vec2(600.0, 300.0));
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
-                        ui.heading("cwnd");
+                        ui.heading("cwnd (bytes)");
 
                         Plot::new("stats_cwnd").show(ui, |plot_ui| {
                             plot_ui.line(line_cwnd);
@@ -284,7 +289,7 @@ impl CCSimuGui {
                 .show(ui, |ui| {
                     ui.set_max_size(vec2(600.0, 300.0));
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
-                        ui.heading("rtt");
+                        ui.heading("RTT (ms)");
 
                         Plot::new("stats_rtt").show(ui, |plot_ui| {
                             plot_ui.line(line_rtt);
@@ -302,7 +307,7 @@ impl CCSimuGui {
                 .show(ui, |ui| {
                     ui.set_max_size(vec2(600.0, 300.0));
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
-                        ui.heading("delivery_rate");
+                        ui.heading("delivery rate (mbps)");
 
                         Plot::new("stats_delivery_rate").show(ui, |plot_ui| {
                             plot_ui.line(line_delivery_rate);
@@ -316,7 +321,7 @@ impl CCSimuGui {
                 .show(ui, |ui| {
                     ui.set_max_size(vec2(600.0, 300.0));
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
-                        ui.heading("in_flight");
+                        ui.heading("in flight (packets)");
 
                         Plot::new("stats_in_flight").show(ui, |plot_ui| {
                             plot_ui.line(line_in_flight);
