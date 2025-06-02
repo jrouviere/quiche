@@ -28,15 +28,25 @@ pub fn gui_main() -> eframe::Result {
 }
 
 struct CCSimuGui {
+    // simu
+    simu_length: usize,
+
+    // algo
+    cc_algo: CongestionControlAlgorithm,
     init_cwnd: usize,
     hystart: bool,
     pacing: bool,
-    cc_algo: CongestionControlAlgorithm,
+
+    // todo:
+    // send_capacity_factor: f64,
+    // startup_cwnd_gain: f64,
+    // drain_cwnd_gain: f64,
+
+    // network
     latency: u64,
     bitrate: f64,
     loss_percent: f64,
     jitter: u32,
-    simu_length: usize,
 }
 
 impl Default for CCSimuGui {
@@ -63,10 +73,15 @@ impl eframe::App for CCSimuGui {
             // run
             let before_run = Instant::now();
             let stats = self.run();
+
+            let total_simulated =
+                stats.ticks.last().map(|v| v.elapsed).unwrap_or(0.0);
             ui.label(format!(
-                "simulated in {:.1}ms",
+                "simulated {:.1}ms in {:.1}ms",
+                total_simulated,
                 1000.0 * before_run.elapsed().as_secs_f64()
             ));
+            ui.label(format!("startup exit: {:?}", stats.startup_exit));
 
             // plot stats
             self.display_graph(ui, &stats);
@@ -289,11 +304,6 @@ impl CCSimuGui {
                 });
 
             ui.end_row();
-
-            ui.add(egui::Label::new(format!(
-                "startup exit: {:?}",
-                stats.startup_exit
-            )))
         });
     }
 
