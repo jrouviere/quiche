@@ -1,12 +1,15 @@
 use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
+use rand::Rng;
+use rand::SeedableRng;
 
 use std::collections::VecDeque;
 use std::time::Duration;
 use std::time::Instant;
 
 use crate::ranges::RangeSet;
-use crate::ranges::{self};
+use crate::ranges::{
+    self,
+};
 use crate::recovery::Sent;
 
 pub struct NetworkSimulator {

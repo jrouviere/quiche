@@ -1,5 +1,4 @@
 //! Simulator for congestion control algorithm
-//!
 
 mod app;
 mod gui;

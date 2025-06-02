@@ -1,14 +1,25 @@
+use std::default;
 use std::time::Duration;
 use std::time::Instant;
 
+use eframe::egui::vec2;
+use eframe::egui::Align;
+use eframe::egui::Layout;
+use eframe::egui::Margin;
 use eframe::egui::Ui;
-use eframe::egui::{self, vec2, Align, Layout, Margin};
-use egui_plot::{Line, Plot, PlotPoints};
+use eframe::egui::{
+    self,
+};
+use egui_plot::Line;
+use egui_plot::Plot;
+use egui_plot::PlotPoints;
 
 use crate::cc_simu::app::AppSimulator;
 use crate::cc_simu::network::NetworkSimulator;
 use crate::cc_simu::simu;
-use crate::recovery::{Recovery, RecoveryConfig};
+use crate::recovery::Recovery;
+use crate::recovery::RecoveryConfig;
+use crate::BbrParams;
 use crate::CongestionControlAlgorithm;
 
 use super::simu::Stats;
@@ -37,30 +48,29 @@ struct CCSimuGui {
     hystart: bool,
     pacing: bool,
 
-    // todo:
-    // send_capacity_factor: f64,
-    // startup_cwnd_gain: f64,
-    // drain_cwnd_gain: f64,
+    // bbr conf
+    startup_cwnd_gain: f32,
+    drain_cwnd_gain: f32,
 
     // network
     latency: u64,
     bitrate: f64,
     loss_percent: f64,
-    jitter: u32,
 }
 
 impl Default for CCSimuGui {
     fn default() -> Self {
         Self {
+            simu_length: 2500,
+            cc_algo: CongestionControlAlgorithm::CUBIC,
             init_cwnd: 10,
             hystart: true,
             pacing: true,
-            cc_algo: CongestionControlAlgorithm::CUBIC,
+            startup_cwnd_gain: 2.0,
+            drain_cwnd_gain: 2.0,
             latency: 10,
             bitrate: 1000.0,
             loss_percent: 0.0,
-            jitter: 0,
-            simu_length: 2500,
         }
     }
 }
@@ -68,20 +78,26 @@ impl Default for CCSimuGui {
 impl eframe::App for CCSimuGui {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.display_settings(ui);
-
             // run
             let before_run = Instant::now();
             let stats = self.run();
 
             let total_simulated =
                 stats.ticks.last().map(|v| v.elapsed).unwrap_or(0.0);
-            ui.label(format!(
-                "simulated {:.1}ms in {:.1}ms",
-                total_simulated,
-                1000.0 * before_run.elapsed().as_secs_f64()
-            ));
-            ui.label(format!("startup exit: {:?}", stats.startup_exit));
+
+            ui.horizontal(|ui| {
+                self.display_settings(ui);
+
+                ui.vertical(|ui| {
+                    ui.heading("Results");
+                    ui.label(format!(
+                        "simulated {:.1}ms in {:.1}ms",
+                        total_simulated,
+                        1000.0 * before_run.elapsed().as_secs_f64()
+                    ));
+                    ui.label(format!("startup exit: {:?}", stats.startup_exit));
+                });
+            });
 
             // plot stats
             self.display_graph(ui, &stats);
@@ -91,25 +107,21 @@ impl eframe::App for CCSimuGui {
 
 impl CCSimuGui {
     fn display_settings(&mut self, ui: &mut Ui) {
-        ui.horizontal(|ui| {
-            egui::Frame::new()
-                .inner_margin(Margin::symmetric(10, 10))
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        ui.heading("Simulation");
-                        ui.add(
-                            egui::Slider::new(
-                                &mut self.simu_length,
-                                1000..=10000,
-                            )
+        egui::Frame::new()
+            .inner_margin(Margin::symmetric(10, 10))
+            .show(ui, |ui| {
+                ui.vertical(|ui| {
+                    ui.heading("Simulation");
+                    ui.add(
+                        egui::Slider::new(&mut self.simu_length, 1000..=10000)
                             .text("length (events)"),
-                        );
-                    });
-
-                    ui.separator();
+                    );
                 });
 
-            egui::Frame::new()
+                ui.separator();
+            });
+
+        egui::Frame::new()
                 .inner_margin(Margin::symmetric(10, 10))
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
@@ -165,39 +177,45 @@ impl CCSimuGui {
                         ui.add(
                             egui::Checkbox::new(&mut self.pacing, "Pacing"),
                         );
+
+                         ui.add(
+                            egui::Slider::new(&mut self.startup_cwnd_gain, 1.0..=3.0)
+                                .text("startup_cwnd_gain"),
+                        );
+                         ui.add(
+                            egui::Slider::new(&mut self.drain_cwnd_gain, 1.0..=3.0)
+                                .text("drain_cwnd_gain"),
+                        );
                     });
                     ui.separator();
                 });
 
-            egui::Frame::new()
-                .inner_margin(Margin::symmetric(10, 10))
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        ui.heading("Network simulator");
-                        ui.add(
-                            egui::Slider::new(&mut self.latency, 1..=500)
-                                .text("latency (ms)"),
-                        );
-                        ui.add(
-                            egui::Slider::new(&mut self.bitrate, 1.0..=5000.0)
-                                .fixed_decimals(0)
-                                .step_by(1.0)
-                                .text("rate limit (mbps)"),
-                        );
-                        ui.add(
-                            egui::Slider::new(
-                                &mut self.loss_percent,
-                                0.0..=100.0,
-                            )
+        egui::Frame::new()
+            .inner_margin(Margin::symmetric(10, 10))
+            .show(ui, |ui| {
+                ui.vertical(|ui| {
+                    ui.heading("Network simulator");
+                    ui.add(
+                        egui::Slider::new(&mut self.latency, 1..=500)
+                            .text("latency (ms)"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.bitrate, 1.0..=5000.0)
+                            .fixed_decimals(0)
+                            .step_by(1.0)
+                            .text("rate limit (mbps)"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.loss_percent, 0.0..=100.0)
                             .fixed_decimals(3)
                             .step_by(0.01)
                             .text("random loss %"),
-                        );
-                        // ui.add(egui::Slider::new(&mut self.jitter, 0..=200).text("jitter"));
-                    });
-                    ui.separator();
+                    );
+                    // ui.add(egui::Slider::new(&mut self.jitter,
+                    // 0..=200).text("jitter"));
                 });
-        });
+                ui.separator();
+            });
     }
 
     fn display_graph(&self, ui: &mut Ui, stats: &Stats) {
@@ -312,7 +330,11 @@ impl CCSimuGui {
             max_send_udp_payload_size: 1200,
             max_ack_delay: Duration::ZERO,
             cc_algorithm: self.cc_algo,
-            custom_bbr_params: None,
+            custom_bbr_params: Some(BbrParams {
+                startup_cwnd_gain: Some(self.startup_cwnd_gain),
+                drain_cwnd_gain: Some(self.drain_cwnd_gain),
+                ..Default::default()
+            }),
             hystart: self.hystart,
             pacing: self.pacing,
             max_pacing_rate: None,
