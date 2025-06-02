@@ -1,4 +1,3 @@
-use std::default;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -7,9 +6,7 @@ use eframe::egui::Align;
 use eframe::egui::Layout;
 use eframe::egui::Margin;
 use eframe::egui::Ui;
-use eframe::egui::{
-    self,
-};
+use eframe::egui::{self};
 use egui_plot::Line;
 use egui_plot::Plot;
 use egui_plot::PlotPoints;
@@ -53,23 +50,25 @@ struct CCSimuGui {
     drain_cwnd_gain: f32,
 
     // network
+    capacity: usize,
     latency: u64,
-    bitrate: f64,
+    bitrate_mbps: f64,
     loss_percent: f64,
 }
 
 impl Default for CCSimuGui {
     fn default() -> Self {
         Self {
-            simu_length: 2500,
+            simu_length: 5000,
             cc_algo: CongestionControlAlgorithm::CUBIC,
             init_cwnd: 10,
             hystart: true,
             pacing: true,
             startup_cwnd_gain: 2.0,
             drain_cwnd_gain: 2.0,
+            capacity: 250,
             latency: 10,
-            bitrate: 1000.0,
+            bitrate_mbps: 1000.0,
             loss_percent: 0.0,
         }
     }
@@ -113,7 +112,7 @@ impl CCSimuGui {
                 ui.vertical(|ui| {
                     ui.heading("Simulation");
                     ui.add(
-                        egui::Slider::new(&mut self.simu_length, 1000..=10000)
+                        egui::Slider::new(&mut self.simu_length, 1000..=100000)
                             .text("length (events)"),
                     );
                 });
@@ -200,7 +199,11 @@ impl CCSimuGui {
                             .text("latency (ms)"),
                     );
                     ui.add(
-                        egui::Slider::new(&mut self.bitrate, 1.0..=5000.0)
+                        egui::Slider::new(&mut self.capacity, 1..=1000)
+                            .text("network buffer (packets)"),
+                    );
+                    ui.add(
+                        egui::Slider::new(&mut self.bitrate_mbps, 1.0..=2500.0)
                             .fixed_decimals(0)
                             .step_by(1.0)
                             .text("rate limit (mbps)"),
@@ -343,8 +346,9 @@ impl CCSimuGui {
 
         let app = AppSimulator::new();
         let network = NetworkSimulator::new(
+            self.capacity,
             Duration::from_millis(self.latency),
-            (1024.0 * 1024.0 * self.bitrate) as u64,
+            1024.0 * 1024.0 * self.bitrate_mbps,
             self.loss_percent / 100.0,
         );
 

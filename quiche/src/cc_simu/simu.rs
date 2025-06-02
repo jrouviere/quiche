@@ -95,11 +95,9 @@ pub fn run(
         }
 
         tick_stats.push(TickStats {
-            now,
             elapsed: now.duration_since(start).as_millis() as f64,
             cwnd: recovery.cwnd(),
             in_flight_count: recovery.in_flight_count(packet::Epoch::Application),
-            in_flight_bytes: recovery.bytes_in_flight(),
             delivery_rate: recovery.delivery_rate().to_bytes_per_second(),
             rtt: recovery.rtt(),
             min_rtt: recovery.min_rtt().unwrap_or(recovery.rtt()),
@@ -115,11 +113,9 @@ pub fn run(
 
 #[derive(Debug)]
 pub struct TickStats {
-    pub now: Instant,
     pub elapsed: f64,
     pub cwnd: usize,
     pub in_flight_count: usize,
-    pub in_flight_bytes: usize,
     pub delivery_rate: u64,
     pub rtt: Duration,
     pub min_rtt: Duration,
@@ -145,10 +141,11 @@ fn find_earliest(instants: &[Option<Instant>]) -> usize {
     for (idx, inst) in instants.iter().enumerate() {
         match (inst, earliest) {
             (Some(_), None) => earliest = Some(idx),
-            (Some(inst), Some(early)) =>
+            (Some(inst), Some(early)) => {
                 if *inst < instants[early].unwrap() {
                     earliest = Some(idx);
-                },
+                }
+            },
             _ => continue,
         }
     }
