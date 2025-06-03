@@ -225,7 +225,7 @@ impl CCSimuGui {
         let cwnd: PlotPoints = stats
             .ticks
             .iter()
-            .map(|v| [v.elapsed, v.cwnd as f64])
+            .map(|v| [v.elapsed, v.cwnd as f64 / 1200.0])
             .collect();
 
         let line_cwnd = Line::new("cwnd", cwnd);
@@ -275,7 +275,7 @@ impl CCSimuGui {
                 .show(ui, |ui| {
                     ui.set_max_size(vec2(600.0, 300.0));
                     ui.with_layout(Layout::top_down(Align::Center), |ui| {
-                        ui.heading("cwnd (bytes)");
+                        ui.heading("cwnd (packets)");
 
                         Plot::new("stats_cwnd").show(ui, |plot_ui| {
                             plot_ui.line(line_cwnd);
