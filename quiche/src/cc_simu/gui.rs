@@ -199,7 +199,7 @@ impl CCSimuGui {
                             .text("latency (ms)"),
                     );
                     ui.add(
-                        egui::Slider::new(&mut self.capacity, 1..=1000)
+                        egui::Slider::new(&mut self.capacity, 100..=10000)
                             .text("network buffer (packets)"),
                     );
                     ui.add(
