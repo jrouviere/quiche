@@ -7,7 +7,9 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::ranges::RangeSet;
-use crate::ranges::{self};
+use crate::ranges::{
+    self,
+};
 use crate::recovery::Sent;
 
 pub struct NetworkSimulator {

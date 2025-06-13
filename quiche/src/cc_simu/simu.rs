@@ -141,11 +141,10 @@ fn find_earliest(instants: &[Option<Instant>]) -> usize {
     for (idx, inst) in instants.iter().enumerate() {
         match (inst, earliest) {
             (Some(_), None) => earliest = Some(idx),
-            (Some(inst), Some(early)) => {
+            (Some(inst), Some(early)) =>
                 if *inst < instants[early].unwrap() {
                     earliest = Some(idx);
-                }
-            },
+                },
             _ => continue,
         }
     }

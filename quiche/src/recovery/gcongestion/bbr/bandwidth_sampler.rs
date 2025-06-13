@@ -29,6 +29,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use std::collections::VecDeque;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -37,6 +38,9 @@ use crate::recovery::gcongestion::Bandwidth;
 use crate::recovery::gcongestion::Lost;
 
 use super::windowed_filter::WindowedFilter;
+
+use std::sync::atomic::Ordering::Relaxed;
+pub static USE_A0_FIX: AtomicBool = AtomicBool::new(true);
 
 #[derive(Debug)]
 struct ConnectionStateMap<T> {
@@ -455,9 +459,13 @@ impl RecentAckPoints {
     }
 
     fn less_recent_point(&self) -> Option<AckPoint> {
-        self.ack_points[0]
-            .filter(|ack_point| ack_point.total_bytes_acked > 0)
-            .or(self.ack_points[1])
+        if USE_A0_FIX.load(Relaxed) {
+            self.ack_points[0]
+                .filter(|ack_point| ack_point.total_bytes_acked > 0)
+                .or(self.ack_points[1])
+        } else {
+            self.ack_points[0].or(self.ack_points[1])
+        }
     }
 }
 
@@ -791,7 +799,11 @@ impl BandwidthSampler {
 
         while let Some(candidate) = a0_candidates.get(1) {
             if candidate.total_bytes_acked > total_bytes_acked {
-                break;
+                if USE_A0_FIX.load(Relaxed) {
+                    break;
+                } else {
+                    return Some(*candidate);
+                }
             }
             a0_candidates.pop_front();
         }

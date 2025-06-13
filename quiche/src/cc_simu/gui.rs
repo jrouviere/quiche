@@ -59,16 +59,16 @@ struct CCSimuGui {
 impl Default for CCSimuGui {
     fn default() -> Self {
         Self {
-            simu_length: 5000,
-            cc_algo: CongestionControlAlgorithm::CUBIC,
+            simu_length: 10000,
+            cc_algo: CongestionControlAlgorithm::Bbr2Gcongestion,
             init_cwnd: 10,
             hystart: true,
             pacing: true,
-            startup_cwnd_gain: 2.0,
-            drain_cwnd_gain: 2.0,
-            capacity: 250,
+            startup_cwnd_gain: 2.89,
+            drain_cwnd_gain: 2.89,
+            capacity: 1000,
             latency: 10,
-            bitrate_mbps: 1000.0,
+            bitrate_mbps: 100.0,
             loss_percent: 0.0,
         }
     }
@@ -79,10 +79,19 @@ impl eframe::App for CCSimuGui {
         egui::CentralPanel::default().show(ctx, |ui| {
             // run
             let before_run = Instant::now();
-            let stats = self.run();
 
-            let total_simulated =
-                stats.ticks.last().map(|v| v.elapsed).unwrap_or(0.0);
+            crate::recovery::gcongestion::bbr::bandwidth_sampler::USE_A0_FIX
+                .store(true, std::sync::atomic::Ordering::Relaxed);
+            let stats1 = self.run();
+
+            crate::recovery::gcongestion::bbr::bandwidth_sampler::USE_A0_FIX
+                .store(false, std::sync::atomic::Ordering::Relaxed);
+            let stats2 = self.run();
+
+            let total_simulated1 =
+                stats1.ticks.last().map(|v| v.elapsed).unwrap_or(0.0);
+            let total_simulated2 =
+                stats2.ticks.last().map(|v| v.elapsed).unwrap_or(0.0);
 
             ui.horizontal(|ui| {
                 self.display_settings(ui);
@@ -91,15 +100,16 @@ impl eframe::App for CCSimuGui {
                     ui.heading("Results");
                     ui.label(format!(
                         "simulated {:.1}ms in {:.1}ms",
-                        total_simulated,
+                        total_simulated1 + total_simulated2,
                         1000.0 * before_run.elapsed().as_secs_f64()
                     ));
-                    ui.label(format!("startup exit: {:?}", stats.startup_exit));
+                    ui.label(format!("startup exit1: {:?}", stats1.startup_exit));
+                    ui.label(format!("startup exit2: {:?}", stats2.startup_exit));
                 });
             });
 
             // plot stats
-            self.display_graph(ui, &stats);
+            self.display_graph(ui, &stats1, &stats2);
         });
     }
 }
@@ -221,52 +231,9 @@ impl CCSimuGui {
             });
     }
 
-    fn display_graph(&self, ui: &mut Ui, stats: &Stats) {
-        let cwnd: PlotPoints = stats
-            .ticks
-            .iter()
-            .map(|v| [v.elapsed, v.cwnd as f64 / 1200.0])
-            .collect();
-
-        let line_cwnd = Line::new("cwnd", cwnd);
-
-        let rtt: PlotPoints = stats
-            .ticks
-            .iter()
-            .map(|v| [v.elapsed, v.rtt.as_millis() as f64])
-            .collect();
-        let line_rtt = Line::new("rtt", rtt);
-        let min_rtt: PlotPoints = stats
-            .ticks
-            .iter()
-            .map(|v| [v.elapsed, v.min_rtt.as_millis() as f64])
-            .collect();
-        let line_min_rtt = Line::new("min_rtt", min_rtt);
-        let max_rtt: PlotPoints = stats
-            .ticks
-            .iter()
-            .map(|v| [v.elapsed, v.max_rtt.as_millis() as f64])
-            .collect();
-        let line_max_rtt = Line::new("max_rtt", max_rtt);
-
-        let delivery_rate: PlotPoints = stats
-            .ticks
-            .iter()
-            .map(|v| {
-                [
-                    v.elapsed,
-                    8.0 * v.delivery_rate as f64 / 1024.0 / 1024.0 as f64,
-                ]
-            })
-            .collect();
-        let line_delivery_rate = Line::new("delivery_rate", delivery_rate);
-
-        let in_flight: PlotPoints = stats
-            .ticks
-            .iter()
-            .map(|v| [v.elapsed, v.in_flight_count as f64])
-            .collect();
-        let line_in_flight = Line::new("in_flight", in_flight);
+    fn display_graph(&self, ui: &mut Ui, stats1: &Stats, stats2: &Stats) {
+        let lines1 = extract_stats(stats1, "_new");
+        let lines2 = extract_stats(stats2, "_old");
 
         egui::Grid::new("plot grid").show(ui, |ui| {
             egui::Frame::new()
@@ -278,7 +245,8 @@ impl CCSimuGui {
                         ui.heading("cwnd (packets)");
 
                         Plot::new("stats_cwnd").show(ui, |plot_ui| {
-                            plot_ui.line(line_cwnd);
+                            plot_ui.line(lines1.cwnd);
+                            plot_ui.line(lines2.cwnd);
                         });
                     })
                 });
@@ -292,9 +260,12 @@ impl CCSimuGui {
                         ui.heading("RTT (ms)");
 
                         Plot::new("stats_rtt").show(ui, |plot_ui| {
-                            plot_ui.line(line_rtt);
-                            plot_ui.line(line_min_rtt);
-                            plot_ui.line(line_max_rtt);
+                            plot_ui.line(lines1.rtt);
+                            plot_ui.line(lines1.min_rtt);
+                            plot_ui.line(lines1.max_rtt);
+                            plot_ui.line(lines2.rtt);
+                            plot_ui.line(lines2.min_rtt);
+                            plot_ui.line(lines2.max_rtt);
                         });
                     })
                 });
@@ -310,7 +281,8 @@ impl CCSimuGui {
                         ui.heading("delivery rate (mbps)");
 
                         Plot::new("stats_delivery_rate").show(ui, |plot_ui| {
-                            plot_ui.line(line_delivery_rate);
+                            plot_ui.line(lines1.delivery_rate);
+                            plot_ui.line(lines2.delivery_rate);
                         });
                     })
                 });
@@ -324,7 +296,8 @@ impl CCSimuGui {
                         ui.heading("in flight (packets)");
 
                         Plot::new("stats_in_flight").show(ui, |plot_ui| {
-                            plot_ui.line(line_in_flight);
+                            plot_ui.line(lines1.in_flight);
+                            plot_ui.line(lines2.in_flight);
                         });
                     })
                 });
@@ -369,4 +342,70 @@ fn cc_algo_to_str(algo: CongestionControlAlgorithm) -> &'static str {
         CongestionControlAlgorithm::BBR2 => "bbr2",
         CongestionControlAlgorithm::Bbr2Gcongestion => "bbr2_gcongestion",
     }
+}
+
+struct Lines<'a> {
+    cwnd: Line<'a>,
+    rtt: Line<'a>,
+    min_rtt: Line<'a>,
+    max_rtt: Line<'a>,
+    delivery_rate: Line<'a>,
+    in_flight: Line<'a>,
+}
+fn extract_stats<'a>(stats: &'a Stats, suffix: &str) -> Lines<'a> {
+    let cwnd: PlotPoints = stats
+        .ticks
+        .iter()
+        .map(|v| [v.elapsed, v.cwnd as f64 / 1200.0])
+        .collect();
+
+    let line_cwnd = Line::new(format!("cwnd{suffix}"), cwnd);
+
+    let rtt: PlotPoints = stats
+        .ticks
+        .iter()
+        .map(|v| [v.elapsed, v.rtt.as_millis() as f64])
+        .collect();
+    let line_rtt = Line::new(format!("rtt{suffix}"), rtt);
+    let min_rtt: PlotPoints = stats
+        .ticks
+        .iter()
+        .map(|v| [v.elapsed, v.min_rtt.as_millis() as f64])
+        .collect();
+    let line_min_rtt = Line::new(format!("min_rtt{suffix}"), min_rtt);
+    let max_rtt: PlotPoints = stats
+        .ticks
+        .iter()
+        .map(|v| [v.elapsed, v.max_rtt.as_millis() as f64])
+        .collect();
+    let line_max_rtt = Line::new(format!("max_rtt{suffix}"), max_rtt);
+
+    let delivery_rate: PlotPoints = stats
+        .ticks
+        .iter()
+        .map(|v| {
+            [
+                v.elapsed,
+                8.0 * v.delivery_rate as f64 / 1024.0 / 1024.0 as f64,
+            ]
+        })
+        .collect();
+    let line_delivery_rate =
+        Line::new(format!("delivery_rate{suffix}"), delivery_rate);
+
+    let in_flight: PlotPoints = stats
+        .ticks
+        .iter()
+        .map(|v| [v.elapsed, v.in_flight_count as f64])
+        .collect();
+    let line_in_flight = Line::new(format!("in_flight{suffix}"), in_flight);
+
+    return Lines {
+        cwnd: line_cwnd,
+        rtt: line_rtt,
+        min_rtt: line_min_rtt,
+        max_rtt: line_max_rtt,
+        delivery_rate: line_delivery_rate,
+        in_flight: line_in_flight,
+    };
 }
